@@ -1,44 +1,69 @@
-
-
-
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, flash, redirect, url_for
 from capstone_backend import read_text, translate_text, summarize, pdf_read
 import os
+import logging
+
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key'
+
+UPLOAD_FOLDER = '/home/anmol/Desktop/capstone/Capstone-WebApp/uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/')
 def home():
     return render_template('loginsignup.html')
 
-@app.route('/extract_text', methods=['GET', 'POST'])
+@app.route('/extract_text', methods=['POST'])
 def extract_text():
-    if request.method == 'POST':
-        file = request.files['file']
-        language=request.form['language']
-        file_ext = os.path.splitext(file)[1]
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        flash('No file selected.')
+        return redirect(url_for('home'))
+    
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(file_path)
+
+    try:
         if file_ext in ('.jpg', '.jpeg', '.png', '.gif'):
-            extracted_text = read_text(file)
+            # Pass the language code dynamically (e.g., 'eng' for English, 'kan' for Kannada)
+            language = request.form.get('language', 'eng')  # Default to English
+            extracted_text = read_text(file_path, language=language)
+            logging.info(f"Processing file: {file_path}")
         elif file_ext == '.pdf':
-            extracted_text = pdf_read(file)
-        return render_template('extracted_text.html', text=extracted_text)
-    return render_template('extract_text.html')
+            extracted_text = pdf_read(file_path)
+        else:
+            flash('Unsupported file type.')
+            return redirect(url_for('home'))
+    except Exception as e:
+        flash(f'Error processing file: {str(e)}')
+        return redirect(url_for('home'))
+    finally:
+        os.remove(file_path)
 
-@app.route('/translate', methods=['GET', 'POST'])
+    return render_template('extracted_text.html', text=extracted_text)
+@app.route('/translate', methods=['POST'])
 def translate():
-    if request.method == 'POST':
-        extracted_text = request.form['text']
-        translated_text = translate_text(extracted_text)
-        return render_template('translated_text.html', text=translated_text)
-    return render_template('translate.html')
+    text = request.form.get('text', '')
+    target_lang = request.form.get('target_language', 'en')  # Default to English if not provided
+    if not text.strip():
+        flash('No text provided for translation.')
+        return redirect(url_for('home'))
+    
+    translated_text = translate_text(text, target_lang)
+    return render_template('translated_text.html', text=translated_text)
 
-@app.route('/summarize', methods=['GET', 'POST'])
-def summarize():
-    if request.method == 'POST':
-        extracted_text = request.form['text']
-        summarized_text = summarize(extracted_text, 40)
-        return render_template('summarized_text.html', text=summarized_text)
-    return render_template('summarize.html')
+@app.route('/summarize', methods=['POST'])
+def summarize_text():
+    text = request.form.get('text', '')
+    if not text.strip():
+        flash('No text provided for summarization.')
+        return redirect(url_for('home'))
+    
+    summarized_text = summarize(text)
+    return render_template('summarized_text.html', text=summarized_text)
 
 if __name__ == '__main__':
     app.run(debug=True)
