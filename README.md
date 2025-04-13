@@ -22,6 +22,6 @@ are made easy and accessible to all.
 
 ## Authors
 
-- [@Pratham-Shah](https://github.com/Pratham-Shah)
+- [@Pratham-Shah](https://github.com/ashikshetty11)
 
   
